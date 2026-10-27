@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><title>프레임 정렬 점검</title>
+<style>body{margin:0;background:#eee8df;font:12px system-ui,'Malgun Gothic',sans-serif;color:#4a3e35}canvas{display:block}</style>
+<body><canvas id="c"></canvas>
+<!-- 행동마다 6프레임을 측정 기준점(바닥 접지점)에 맞춰 나란히 + 겹쳐(onion) 그린다.
+     빨강 + = 기준점, 파랑 점 = 머리 꼭대기(들기·효과), 초록 = 입, 주황 = 앞발 끝. 회색 선 = 바닥선.
+     ?a=행동ID,행동ID 로 일부만, ?ch=동물 로 동물 선택 -->
+<script src="../js/config.js"></script><script src="../js/tuning.js"></script><script src="../js/sim.js"></script>
+<script>
+(async () => {
+  const cfg = MP_CONFIG, q = new URLSearchParams(location.search);
+  const load = s => new Promise((ok, no) => { const e = document.createElement('script'); e.src = s; e.onload = ok; e.onerror = no; document.head.append(e); });
+  await load('../data/assets.js'); await load('../data/metrics.js').catch(() => {}); const base = '../' + PET_ASSETS.base;
+  const data = MP.buildData(PET_ASSETS, window.PET_METRICS, window.MP_TUNING);
+  const ch = data.characters[q.get('ch') || data.available[0]];
+  const ids = q.get('a') ? q.get('a').split(',') : Object.keys(data.actions);
+  const imgs = {}; for (const [k, f] of Object.entries(ch.sheets)) imgs[k] = await new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.src = base + f; });
+  const S = .5, CW = 150, ROW = 150, LBL = 120, c = document.getElementById('c'), x = c.getContext('2d');
+  c.width = LBL + CW * 7; c.height = ROW * ids.length; x.fillStyle = '#eee8df'; x.fillRect(0, 0, c.width, c.height);
+  const draw = (fr, gx, gy, a = 1) => { const r = fr.rect; x.save(); x.globalAlpha = a; x.translate(gx, gy); x.scale(S, S);
+    if (fr.clip) { x.beginPath(); fr.clip.forEach(([px, py], i) => i ? x.lineTo(px - fr.pivot[0], py - fr.pivot[1]) : x.moveTo(px - fr.pivot[0], py - fr.pivot[1])); x.closePath(); x.clip(); }
+    x.drawImage(imgs[fr.sheet], r[0], r[1], r[2], r[3], -fr.pivot[0], -fr.pivot[1], r[2], r[3]); x.restore(); };
+  const dot = (gx, gy, fr, pt, col) => { x.fillStyle = col; x.beginPath(); x.arc(gx + (pt[0] - fr.pivot[0]) * S, gy + (pt[1] - fr.pivot[1]) * S, 3, 0, 7); x.fill(); };
+  ids.forEach((id, row) => {
+    const fs = ch.anims[id], gy = row * ROW + ROW - 22;
+    x.fillStyle = '#4a3e35'; x.fillText(id, 6, row * ROW + 18); x.fillText(data.actions[id].label, 6, row * ROW + 34);
+    x.strokeStyle = '#b9ab9c'; x.beginPath(); x.moveTo(LBL, gy + .5); x.lineTo(c.width, gy + .5); x.stroke();
+    fs.forEach((fr, i) => {
+      const gx = LBL + CW * i + CW / 2;
+      x.strokeStyle = '#d6cabd'; x.beginPath(); x.moveTo(gx + .5, row * ROW + 4); x.lineTo(gx + .5, gy + 10); x.stroke();
+      draw(fr, gx, gy);
+      dot(gx, gy, fr, fr.top, '#3b6fd8'); dot(gx, gy, fr, fr.mouth, '#2f9a55'); dot(gx, gy, fr, fr.reach, '#e0812e');
+      if (fr.hug) dot(gx, gy, fr, fr.hug, '#c43ad0');
+      x.strokeStyle = '#d33'; x.beginPath(); x.moveTo(gx - 5, gy); x.lineTo(gx + 5, gy); x.moveTo(gx, gy - 5); x.lineTo(gx, gy + 5); x.stroke();
+      x.fillStyle = '#7d6e62'; x.fillText(i, gx - 60, row * ROW + 14);
+    });
+    const ox = LBL + CW * 6 + CW / 2; fs.forEach(fr => draw(fr, ox, gy, .22));
+    x.fillStyle = '#7d6e62'; x.fillText('겹침', ox - 60, row * ROW + 14);
+  });
+  document.title = 'done';
+})();
+</script></body></html>

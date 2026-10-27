@@ -88,28 +88,61 @@ function showHint() {
 
 // ---------- 창 크기 → 방 좌표 ----------
 // 방 가로 전체가 늘 보이게 맞추고, 창이 넓으면 위쪽(벽)만 잘린다. 바닥 아래 minVisibleH 는 늘 보인다.
+// 세로로 긴 창은 방을 tallFill 만큼 키워 가로가 잘리고(pan), 카메라(camX)가 동물을 따라간다.
+// pan 일 때 시뮬의 view 는 방 가로 전체(동물은 방 어디든 다님), 화면 폭은 view.w 로 따로 알려 준다.
+let pan = false, camX = 0, camMoving = false, focusQ = null;
 function layout() {
   W = innerWidth; H = innerHeight; dpr = Math.min(2, devicePixelRatio || 1);
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-  s = Math.min(W / room.w, H / room.minVisibleH);
-  ox = (W - room.w * s) / 2; oy = H - room.h * s;
-  w.view = { left: Math.max(0, -ox / s), right: Math.min(room.w, (W - ox) / s), top: -oy / s, bottom: room.h };
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  s = Math.min(Math.max(Math.min(W / room.w, H / room.minVisibleH), H * room.tallFill / room.h), W / room.minVisibleW);
+  pan = room.w * s > W + 1;
+  oy = H - room.h * s;
+  if (pan) { w.view = { left: 0, right: room.w, top: -oy / s, bottom: room.h, w: W / s }; updateCam(0, true); }
+  else { ox = (W - room.w * s) / 2; w.view = { left: Math.max(0, -ox / s), right: Math.min(room.w, (W - ox) / s), top: -oy / s, bottom: room.h }; w.view.w = w.view.right - w.view.left; }
   // 새 창 크기에서 안 보이게 된 것들을 안으로
   const top = w.floorTopNow();
   for (const q of w.pets) if (!q.on && !q.hold && q.y < top) q.y = top;
   for (const o of [w.ball, w.plush, w.rope]) if (o && o.y < top - 40) o.y = top - 40;
   buildBg(); wake();
 }
+// 카메라: 따라갈 x(두 마리가 가까우면 가운데, 멀면 마지막으로 만진 동물)가 화면 가운데 40~60% 를 벗어나면 부드럽게 따라가고,
+// 30~70% 밖으로는 못 나가게 붙잡는다. 손가락을 대고 있는 동안은 멈춘다(움직이면 손 아래 그림이 미끄러진다).
+function updateCam(dt, snap) {
+  if (!pan) return false;
+  const vw = W / s, xs = w.pets.map(q => w.pose(q).x), lo = Math.min(...xs), hi = Math.max(...xs);
+  const fx = hi - lo < vw * .5 ? (lo + hi) / 2 : w.pose(w.pets.includes(focusQ) ? focusQ : w.pets[0]).x;
+  let c = camX;
+  if (snap) c = fx - vw / 2;
+  else if (!gest) {
+    const goal = fx < c + vw * .4 ? fx - vw * .4 : fx > c + vw * .6 ? fx - vw * .6 : c;
+    c = clamp(c + (goal - c) * Math.min(1, dt * 3), fx - vw * .7, fx - vw * .3);
+  }
+  c = clamp(c, 0, room.w - vw);
+  const moved = Math.abs(c - camX) > .05;
+  camX = c; ox = -camX * s;
+  return moved;
+}
 const toWorld = e => [(e.clientX - ox) / s, (e.clientY - oy) / s];
-let resizeT = 0;
-addEventListener('resize', () => { if (w) { layout(); clearTimeout(resizeT); resizeT = setTimeout(store, 800); } });
+// 회전 직후엔 innerWidth/innerHeight 가 늦게 바뀌는 브라우저(삼성 인터넷 등)가 있어 몇 번 더 잰다
+let resizeT = 0, sizeT = [];
+function onResize() {
+  if (!w) return;
+  const check = () => { if (innerWidth !== W || innerHeight !== H || Math.min(2, devicePixelRatio || 1) !== dpr) layout(); };
+  sizeT.forEach(clearTimeout); check(); sizeT = [150, 400, 900].map(ms => setTimeout(check, ms));
+  clearTimeout(resizeT); resizeT = setTimeout(store, 800);
+}
+addEventListener('resize', onResize);
+addEventListener('orientationchange', onResize);
+if (window.visualViewport) visualViewport.addEventListener('resize', onResize);
 
+// pan 이면 방 가로 전체를 미리 그려 두고 render 에서 카메라만큼 밀어 찍는다
 function buildBg() {
-  const img = imgs[w.night ? data.backgrounds[1] : data.backgrounds[0]];
-  bg = bg || document.createElement('canvas'); bg.width = cv.width; bg.height = cv.height;
+  const img = imgs[w.night ? data.backgrounds[1] : data.backgrounds[0]], bx = pan ? 0 : ox;
+  bg = bg || document.createElement('canvas'); bg.width = pan ? Math.ceil(room.w * s * dpr) : cv.width; bg.height = cv.height;
   const c = bg.getContext('2d');
-  c.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
-  const top = -oy / s, l = -ox / s;
+  c.setTransform(dpr * s, 0, 0, dpr * s, dpr * bx, dpr * oy);
+  const top = -oy / s, l = -bx / s;
   if (top < 0) c.drawImage(img, 0, 0, room.w, 2, l - 2, top - 2, room.w - 2 * l + 4, -top + 4);        // 위: 벽 색을 늘린다
   if (l < 0) { c.drawImage(img, 0, 0, 2, room.h, l - 2, top, -l + 4, room.h - top); c.drawImage(img, room.w - 2, 0, 2, room.h, room.w - 2, top, -l + 4, room.h - top); }
   c.drawImage(img, 0, 0);
@@ -171,7 +204,7 @@ function drawFx(front) {
 function render() {
   const b = w.ball;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(bg, 0, 0);
+  ctx.drawImage(bg, pan ? Math.round(dpr * ox) : 0, 0);
   ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
   // 그림자
   for (const q of w.pets) {
@@ -223,7 +256,7 @@ let raf = 0, timer = 0, last = 0, errN = 0;
 function frame(now) {
   raf = 0;
   const dt = last ? Math.min(.1, (now - last) / 1000) : .016; last = now;
-  try { w.update(dt); render(); w.renders = (w.renders || 0) + 1; errN = 0; }
+  try { w.update(dt); camMoving = updateCam(dt); render(); w.renders = (w.renders || 0) + 1; errN = 0; }
   catch (e) { if (errN++ < 3) console.error('[mini_pet]', e); if (errN > 120) { w.startScene('calm', 10, undefined, w.pets[0]); errN = 0; } }
   schedule();
 }
@@ -231,7 +264,7 @@ function frame(now) {
 // 아무것도 없으면 다음 애니메이션 프레임 "직후"까지 쉰다(직전에 깨면 같은 프레임을 두 번 그린다).
 function schedule() {
   if (raf || timer || document.hidden) return;
-  if (gest || w.activeHeavy) { raf = requestAnimationFrame(frame); return; }
+  if (gest || w.activeHeavy || camMoving) { raf = requestAnimationFrame(frame); return; }
   const wait = w.activeLight ? 50 : Math.max(16, w.nextFrameIn() * 1000 + 3);
   timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(frame); }, wait);
 }
@@ -241,8 +274,9 @@ document.addEventListener('visibilitychange', () => { last = 0; wake(); });
 // ---------- 입력 ----------
 // 동물 위: 누른 채 문지르기 = 쓰다듬기 / 꾹 누르기(0.35초) 또는 위로 끌기 = 들기 / 짧게 누르기 = 클릭
 // 공·인형·줄: 끌어서 던지기, 짧게 누르면 톡 / 빈 곳: 유리 톡톡(간식을 들고 있으면 떨어뜨리기)
-let gest = null, lastMoveT = 0;
+let gest = null, lastMoveT = 0, ptrType = 'mouse';
 cv.addEventListener('pointerdown', e => {
+  ptrType = e.pointerType;
   if (!w || e.button !== 0) return;
   if (window.MP_AUDIO) MP_AUDIO.unlock();
   closeMenu();
@@ -253,6 +287,7 @@ cv.addEventListener('pointerdown', e => {
   if (w.treat && w.treat.state === 'hand') { w.input('tapGlass', { x, y }); gest = { kind: 'none' }; return wake(); }
   const hitQ = w.petAt(x, y);
   if (hitQ) {
+    focusQ = hitQ;
     gest = { kind: 'pet', pet: hitQ, x0: x, y0: y, t0: t, mode: null };
     gest.timer = setTimeout(() => { if (gest && gest.kind === 'pet' && !gest.mode) startLift(); }, 350);
   } else {
@@ -296,7 +331,8 @@ cv.addEventListener('pointerup', () => endGesture(false));
 cv.addEventListener('pointercancel', () => endGesture(true));
 cv.addEventListener('lostpointercapture', () => { if (gest) endGesture(true); });
 cv.addEventListener('pointerleave', () => { if (w) { w.input('pointer', { x: w.pointer.x, y: w.pointer.y, inside: false }); wake(); } });
-cv.addEventListener('contextmenu', e => { e.preventDefault(); cancelModes(); });
+// 터치 길게 누르기도 contextmenu 를 낸다 — 우클릭(마우스)일 때만 낚싯대·간식을 내려놓는다
+cv.addEventListener('contextmenu', e => { e.preventDefault(); if (ptrType === 'mouse') cancelModes(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') { if (document.body.classList.contains('ui')) closeMenu(); else cancelModes(); } });
 function cancelModes() { if (!w) return; if (w.teaser.on) toggle('teaser'); if (w.treat && w.treat.state === 'hand') toggle('treat'); }
 function updateCursor(x, y) {

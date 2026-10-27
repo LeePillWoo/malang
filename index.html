@@ -6,8 +6,10 @@
 <title>말랑 펫</title>
 <link rel="icon" href="data/icon.png">
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#3a2f35;user-select:none;-webkit-user-select:none}
-canvas{display:block;width:100vw;height:100vh;touch-action:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#3a2f35;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+/* 크기는 view.js 가 innerWidth/innerHeight 로 직접 정한다(모바일 100vh 는 주소창이 숨었을 때 높이라 실제 화면보다 길다) */
+canvas{display:block;position:fixed;left:0;top:0;width:100%;height:100%;touch-action:none}
+button{touch-action:manipulation}
 /* 오른쪽 위 작은 발바닥 버튼 — 누르면 메뉴가 아래로 펼쳐진다 */
 #menuBtn{position:fixed;right:8px;top:8px;width:32px;height:32px;border:0;border-radius:50%;background:rgba(255,250,244,.55);box-shadow:0 1px 6px rgba(60,40,30,.22);cursor:pointer;padding:0;opacity:.6;transition:opacity .2s,background .2s}
 #menuBtn:hover,body.ui #menuBtn{opacity:1;background:rgba(255,250,244,.95)}

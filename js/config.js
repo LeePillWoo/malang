@@ -9,6 +9,7 @@ window.MP_CONFIG = {
     w: 1536, h: 1024,
     floorTop: 610, floorBottom: 1000,    // 걸어 다닐 수 있는 깊이 범위
     minVisibleH: 680,                    // 창이 아주 넓어도 바닥 아래쪽 이만큼은 늘 보인다
+    tallFill: 0.72, minVisibleW: 560,    // 세로로 긴 창(폰 세로): 방 그림이 창 높이의 이만큼은 채우게 키우고, 가로가 잘리면 카메라가 동물을 따라간다(최소 이 폭은 보임)
     nightFrom: 21, nightTo: 7,           // 자동 밤 시간(시)
   },
 

@@ -133,7 +133,7 @@ MP.createWorld = function (data, cfg, opt = {}) {
     let mw = 1, mh = 1;
     for (const id of ['glass_press', 'glass_hold', 'glass_slide', 'glass_release']) for (const f of q.ch.anims[id]) { mw = Math.max(mw, f.bbox[2]); mh = Math.max(mh, f.pivot[1] - f.bbox[1]); }
     const V = w.view;
-    return Math.min((V.bottom - Math.max(V.top, 0)) * .8 / mh, (V.right - V.left) * .64 / mw);
+    return Math.min((V.bottom - Math.max(V.top, 0)) * .8 / mh, (V.w || V.right - V.left) * .64 / mw);   // V.w = 화면에 보이는 폭(카메라가 움직일 때 view 는 방 전체)
   };
   w.reachOf = (id, i, q = w.pet) => { const fr = w.frameOf(id, i, q); return (fr.reach[0] - fr.pivot[0]) * w.petScale(q.y, q); };
 
